@@ -1,46 +1,100 @@
-# Makefile for Next.js + Redis project
+# Default environment variables
+ENV ?= dev
+COMPOSE_PROFILE ?= $(ENV)
+COMPOSE := docker compose
+YARN := yarn
+APP_PORT ?= 3000
+REDIS_PORT ?= 6380
 
-.PHONY: help build up down dev test clean lint
+# Ensure Docker is running
+CHECK_DOCKER := $(shell docker info >/dev/null 2>&1 && echo "Docker is running" || echo "Docker is not running")
+ifneq ($(CHECK_DOCKER),Docker is running)
+  $(error Docker is not running. Please start Docker and try again.)
+endif
 
-help:  ## Display this help
-	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n\nTargets:\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+.PHONY: help init build up down dev logs test clean lint redis-cli bash health performance prune
 
-init: ## Initialize the project (first-time setup)
-	@docker compose -f docker-compose.dev.yml run --rm app yarn install
+help: ## Display this help
+	@echo "\nUsage: make [ENV=dev|prod] <target>\n"
+	@echo "Environment Variables:"
+	@echo "  ENV            Set to 'dev' or 'prod' (default: dev)"
+	@echo "  APP_PORT       Application port (default: 3000)"
+	@echo "  REDIS_PORT     Redis port (default: 6380)"
+	@echo "\nTargets:"
+	@awk 'BEGIN {FS = ":.*?##"; printf ""} /^[a-zA-Z_-]+:.*?##/ {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-build: ## Build the production containers
-	@docker compose build
+init: ## Initialize project (install dependencies)
+	@echo "Installing dependencies..."
+	@$(COMPOSE) run --rm app $(YARN) install
 
-up: build ## Start the production containers
-	@docker compose up -d
+build: ## Build containers (use BUILD_NO_CACHE=1 for no-cache build)
+	@echo "Building containers for $(ENV)..."
+	@if [ "$(BUILD_NO_CACHE)" = "1" ]; then \
+		$(COMPOSE) --profile $(COMPOSE_PROFILE) build --no-cache; \
+	else \
+		$(COMPOSE) --profile $(COMPOSE_PROFILE) build; \
+	fi
 
-down: ## Stop and remove all containers
-	@docker compose down
+up: build ## Start containers in background
+	@echo "Starting $(ENV) containers..."
+	@$(COMPOSE) --profile $(COMPOSE_PROFILE) up -d
+	@echo "Application running at http://localhost:$(APP_PORT)"
+
+down: ## Stop and remove containers
+	@echo "Stopping containers..."
+	@$(COMPOSE) --profile $(COMPOSE_PROFILE) down
 
 dev: ## Start development environment with hot-reloading
-	@docker compose -f docker-compose.dev.yml up --build --remove-orphans
+	@echo "Starting development environment..."
+	@$(COMPOSE) --profile dev up --build --remove-orphans
+	@echo "Development server running at http://localhost:$(APP_PORT)"
 
-logs: ## View container logs
-	@docker compose logs -f
+logs: ## View container logs (use LOGS_FOLLOW=0 to disable follow)
+	@echo "Displaying logs..."
+	@if [ "$(LOGS_FOLLOW)" = "0" ]; then \
+		$(COMPOSE) --profile $(COMPOSE_PROFILE) logs; \
+	else \
+		$(COMPOSE) --profile $(COMPOSE_PROFILE) logs -f; \
+	fi
 
 test: ## Run tests
-	@docker compose -f docker-compose.dev.yml exec app yarn test
-
-clean: down ## Clean up all containers and volumes
-	@docker compose down -v
-	@docker system prune -f --volumes
+	@echo "Running tests..."
+	@$(COMPOSE) --profile dev exec app $(YARN) test || { echo "Tests failed"; exit 1; }
 
 lint: ## Run linter
-	@docker compose -f docker-compose.dev.yml exec app yarn lint
+	@echo "Running linter..."
+	@$(COMPOSE) --profile dev exec app $(YARN) lint
+
+clean: down ## Clean containers, volumes, and images (use FORCE_CLEAN=1 to prune all)
+	@echo "Cleaning up..."
+	@$(COMPOSE) --profile $(COMPOSE_PROFILE) down -v
+	@if [ "$(FORCE_CLEAN)" = "1" ]; then \
+		echo "Pruning all unused Docker resources..."; \
+		docker system prune -f --volumes; \
+		docker builder prune -f; \
+	fi
 
 redis-cli: ## Access Redis CLI
-	@docker compose -f docker-compose.dev.yml exec redis redis-cli
+	@echo "Accessing Redis CLI..."
+	@$(COMPOSE) --profile $(COMPOSE_PROFILE) exec redis redis-cli
 
 bash: ## Access app container shell
-	@docker compose -f docker-compose.dev.yml exec app sh
-
-production: build ## Run production build locally
-	@docker compose up -d
+	@echo "Accessing app container shell..."
+	@$(COMPOSE) --profile $(COMPOSE_PROFILE) exec app sh
 
 health: ## Check container health
-	@docker compose -f docker-compose.dev.yml ps
+	@echo "Checking container health..."
+	@$(COMPOSE) --profile $(COMPOSE_PROFILE) ps -a
+	@docker inspect --format='{{.State.Health.Status}}' $$($(COMPOSE) --profile $(COMPOSE_PROFILE) ps -q app) || echo "App container not running"
+	@docker inspect --format='{{.State.Health.Status}}' $$($(COMPOSE) --profile $(COMPOSE_PROFILE) ps -q redis) || echo "Redis container not running"
+
+performance: ## Run performance tests (requires Lighthouse CLI)
+	@echo "Running performance tests..."
+	@docker run --rm -v $(PWD)/reports:/reports node:18-alpine sh -c "npm install -g lighthouse && lighthouse http://host.docker.internal:$(APP_PORT) --output=json --output-path=/reports/lighthouse.json"
+	@echo "Performance report generated at reports/lighthouse.json"
+
+prune: ## Prune unused Docker resources
+	@echo "Pruning unused Docker resources..."
+	@docker system prune -f
+	@docker volume prune -f
+	@docker builder prune -f

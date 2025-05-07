@@ -1,1 +1,1 @@
-self.__REACT_LOADABLE_MANIFEST="{}"
+self.__REACT_LOADABLE_MANIFEST="{\"pages/index.js -> ../components/PostList\":{\"id\":\"pages/index.js -> ../components/PostList\",\"files\":[\"static/chunks/components_PostList_js.js\"]}}"
