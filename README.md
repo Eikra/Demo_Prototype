@@ -1,76 +1,86 @@
-# Demo_Prototype
-Makefile Commands
-The project includes a Makefile with these convenient commands:
+Next.js Redis Demo
+A scaled-down demo prototype integrating Next.js, React, and Redis to cache API responses from JSONPlaceholder, showcasing server-side and client-side rendering.
+Setup Instructions
+Prerequisites
 
-Command	Description
-make help	Show all available commands
-make build	Build production containers
-make up	Start production containers in background
-make down	Stop and remove containers
-make dev	Start development environment with hot-reload
-make logs	View container logs
-make test	Run tests
-make clean	Remove all containers and volumes
-make lint	Run linter
-make redis-cli	Access Redis CLI
-make bash	Access app container shell
-### Performance Metrics
-- **API Response Time (Without Cache)**: ~500ms (JSONPlaceholder API)
-- **API Response Time (With Redis Cache)**: ~10-50ms
-- **Lighthouse Performance Score**:
-  - Before: 85 (no caching, full bundle)
-  - After: 92 (Redis caching, dynamic imports)
-- **Testing Approach**: Used Chrome DevTools for network timing and Lighthouse for overall performance.
-### Scaling Vision
-To scale this prototype for millions of daily users, I would deploy multiple Next.js instances behind a load balancer (e.g., AWS ALB) to distribute traffic. Redis would be configured in a cluster mode for high availability and data sharding. API responses and static assets would be cached at the edge using a CDN like Cloudflare to reduce latency. For further scalability, the app could be split into microservices (e.g., API gateway, post service) to allow independent scaling and maintenance. If a database is introduced, read replicas and indexing would optimize query performance.
-------------------------------------
-# Next.js Redis Demo
+Docker and Docker Compose
+Node.js 18+
+Yarn
 
-A scaled-down demo prototype integrating Next.js, React, and Redis for caching API responses from JSONPlaceholder.
-
-## Setup Instructions
-### Prerequisites
-- Docker and Docker Compose
-- Node.js 18+
-- Yarn
-
-### Environment Variables
-Create a `.env` file in the root directory:
-REDIS_URL=redis://localhost:6379
+Environment Variables
+Create a .env file in the root directory with:
+REDIS_URL=redis://localhost:6380
 API_BASE_URL=https://jsonplaceholder.typicode.com
 NODE_ENV=development
+DEFAULT_POSTS_LIMIT=10
+REDIS_PORT=6380
+APP_PORT=3000
 
-### Running Locally
-1. Install dependencies:
-   ```bash
-   yarn install
-2. Start development environment with Docker:
+Running Locally
 
-bash
-docker compose --profile dev up --build
-3. Access the app at http://localhost:3000.
+Clone the repository and navigate to the project directory.
+Install dependencies:yarn install
 
-### Running Production:
 
-bash
+Start the development environment:docker compose --profile dev up --build
+
+
+Access the app at http://localhost:3000.
+
+Running Production
 docker compose --profile prod up --build
 
 Architecture Summary
-Next.js Pages:
-/: Home page with SSR and CSR sections.
-/posts: SSR page with Redis-cached posts.
-/posts/[id]: CSR page for individual post details.
-Redis Cache: Caches API responses in lib/redis.js with a TTL of 1 hour.
+
+Pages:
+/: Home page with static SSR content and a client-side rendered PostList component (dynamic import, SWR for data fetching).
+/posts: Server-side rendered page using getServerSideProps to fetch and cache posts.
+/posts/[id]: Client-side rendered post details page using SWR.
+
+
+Redis Caching: Managed in lib/redis.js with getOrSetCache, caching API responses with a 1-hour TTL for efficiency.
 Data Fetching:
-Client-side: SWR for /api/posts and /api/posts/[id].
-Server-side: getStaticProps with ISR for /posts.
-API Routes: /api/posts fetches and caches posts with pagination support.
+Client-Side: SWR fetches paginated posts via /api/posts.
+Server-Side: getServerSideProps fetches posts from JSONPlaceholder, cached in Redis.
+
+
+API Routes: /api/posts provides paginated posts with Redis caching; /api/redis-test verifies Redis connectivity.
+Additional Features: Pagination, error handling (ErrorBoundary), and Redis streams (partially implemented for real-time updates).
+
 Performance Metrics
-API Response Time (Without Cache): ~500ms
-API Response Time (With Redis Cache): ~10-50ms
+
+API Response Time:
+Without Cache: ~500ms (JSONPlaceholder API).
+With Redis Cache: ~10-50ms.
+
+
 Lighthouse Performance Score:
-Before: 85
-After: 92 (with caching and dynamic imports)
-Testing Approach: Chrome DevTools for network timing, Lighthouse for performance.
+Before: 85 (no caching, full bundle).
+After: 92 (Redis caching, dynamic imports).
+
+
+Testing Approach:
+Used Chrome DevTools for network timing and Lighthouse for performance scores.
+Run make performance to generate a Lighthouse report at reports/lighthouse.json.
+
+
+
 Scaling Vision
-To handle millions of users, deploy multiple Next.js instances behind a load balancer (AWS ALB). Use Redis Cluster for high availability and sharding. Cache responses and assets via a CDN (Cloudflare). Split into microservices (API gateway, post service) for independent scaling. Optimize database queries with read replicas and indexing if a database is added.
+To support millions of users, deploy multiple Next.js instances behind an AWS Application Load Balancer for traffic distribution. Use Redis Cluster with replication for high availability and sharding. Cache static assets and API responses via a CDN (Cloudflare) to reduce latency. Split the app into microservices (e.g., API gateway, post service) for independent scaling. If a database is added, use read replicas and indexing for query performance.
+Makefile Commands
+
+make help: List all commands.
+make dev: Start development environment with hot-reloading.
+make test: Run tests (limited coverage).
+make performance: Generate Lighthouse performance report.
+make redis-cli: Access Redis CLI.
+make clean: Remove containers and volumes.
+
+Limitations
+
+Limited test coverage (focuses on Redis caching, basic component tests).
+Redis streams for real-time updates are implemented but not fully integrated into the UI.
+Cache invalidation for dynamic dataset changes is not implemented.
+
+Notes
+This is my first remote technical test, and while the project meets most objectives, some features (e.g., real-time updates, extensive testing) are incomplete due to time constraints. I’m eager to discuss my approach and potential improvements in an interview.
