@@ -40,6 +40,7 @@ export default function PostList() {
             </li>
           ))}
         </ul>
+
         <div className="mt-4 flex justify-between">
           <button
             onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -56,6 +57,7 @@ export default function PostList() {
             Next
           </button>
         </div>
+        
       </div>
     </ErrorBoundary>
   );
