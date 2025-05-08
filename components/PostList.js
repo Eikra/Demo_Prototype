@@ -12,7 +12,7 @@ const fetcher = async (url) => {
 
 export default function PostList() {
   const [page, setPage] = useState(1);
-  const postsPerPage = 5;
+  const postsPerPage = 10;
 
   const { data: posts, error, isLoading } = useSWR(
     `/api/posts?page=${page}&limit=${postsPerPage}`,
